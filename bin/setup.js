@@ -90,6 +90,30 @@ if (hasTailwindConfig || hasTailwindDep) {
   }
 }
 
+// Ensure index.css is imported in main.tsx (shadcn writes CSS vars there)
+const mainTsx = findFile(srcDir, ['main.tsx', 'main.jsx', 'main.ts']);
+if (mainTsx) {
+  let mainContent = fs.readFileSync(mainTsx, 'utf-8');
+  if (!mainContent.includes('index.css')) {
+    // Add import at top, after other imports
+    const importRegex = /^import\s+.*?['"][^'"]+['"];?\s*$/gm;
+    let lastImportEnd = 0;
+    let m;
+    while ((m = importRegex.exec(mainContent)) !== null) {
+      lastImportEnd = m.index + m[0].length;
+    }
+    if (lastImportEnd > 0) {
+      mainContent = mainContent.slice(0, lastImportEnd) + "\nimport './index.css';" + mainContent.slice(lastImportEnd);
+    } else {
+      mainContent = "import './index.css';\n" + mainContent;
+    }
+    fs.writeFileSync(mainTsx, mainContent, 'utf-8');
+    ok('Added index.css import to main.tsx');
+  } else {
+    ok('index.css already imported');
+  }
+}
+
 // ══════════════════════════════════════════════
 // STEP 2: Path alias + utils
 // ══════════════════════════════════════════════
