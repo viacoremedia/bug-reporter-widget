@@ -168,6 +168,27 @@ if (viteConfigPath) {
     ok('Added @ path alias to vite config');
   }
 
+  // Ensure bug-reporter is excluded from Vite's dep optimizer
+  // (it ships raw TSX with @/ imports that only resolve through Vite's alias pipeline)
+  vc = fs.readFileSync(viteConfigPath, 'utf-8');
+  if (!vc.includes('@viacoremedia/bug-reporter')) {
+    if (vc.includes('optimizeDeps')) {
+      // optimizeDeps block exists — add exclude inside
+      if (vc.includes('exclude:')) {
+        vc = vc.replace(/exclude:\s*\[/, 'exclude: ["@viacoremedia/bug-reporter", ');
+      } else {
+        vc = vc.replace(/optimizeDeps:\s*\{/, 'optimizeDeps: {\n    exclude: ["@viacoremedia/bug-reporter"],');
+      }
+    } else {
+      // No optimizeDeps — add before closing
+      vc = vc.replace(/}\)\);?\s*$/, '  optimizeDeps: {\n    exclude: ["@viacoremedia/bug-reporter"],\n  },\n}));');
+    }
+    fs.writeFileSync(viteConfigPath, vc, 'utf-8');
+    ok('Added optimizeDeps.exclude for bug-reporter');
+  } else {
+    ok('Vite optimizeDeps already configured');
+  }
+
   // Also check tsconfig for path alias
   const tsconfigPath = findFile(cwd, ['tsconfig.json', 'tsconfig.app.json']);
   if (tsconfigPath) {
