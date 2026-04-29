@@ -26,25 +26,36 @@ Once setup is done, install like any other package:
 npm install @viacoremedia/bug-reporter html2canvas
 ```
 
-## Usage
+## Quick Start
+
+After installing, run the setup CLI — it auto-patches your app:
+
+```bash
+npx bug-reporter-setup "Your System Name"
+```
+
+That's it. The script will:
+- ✅ Find your `App.tsx` (or main entry file)
+- ✅ Add the `BugReporter` import
+- ✅ Inject `<BugReporter systemName="..." />` into your JSX
+- ✅ Auto-detect `useAuth()` and wire up user context if available
+
+Run your dev server and you'll see the 🐛 icon in the bottom-right corner.
+
+### Manual Setup
+
+If you prefer to add it manually:
 
 ```tsx
 import { BugReporter } from '@viacoremedia/bug-reporter';
 
-// Minimal — just the system name
-<BugReporter systemName="Precision ERP" />
+// Inside your component's return:
+<BugReporter systemName="Your System Name" />
 
-// With user context from your auth system
-const { user } = useAuth();
-
+// With user context (optional):
 <BugReporter
   systemName="Map"
-  user={{
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    id: user.id,
-  }}
+  user={{ name: user.name, email: user.email, role: user.role, id: user.id }}
 />
 ```
 
