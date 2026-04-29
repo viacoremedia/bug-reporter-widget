@@ -107,7 +107,14 @@ if (viteConfigPath) {
     if (vc.includes('resolve:')) {
       vc = vc.replace(/resolve:\s*\{/, 'resolve: {\n    alias: {\n      "@": path.resolve(__dirname, "./src"),\n    },');
     } else {
-      vc = vc.replace(/}\)\);?\s*$/, '  resolve: {\n    alias: {\n      "@": path.resolve(__dirname, "./src"),\n    },\n  },\n}));');
+      // Insert resolve block before the last closing brace(s)
+      // Handles: }))  OR  })  OR  }); etc.
+      const resolveBlock = '  resolve: {\n    alias: {\n      "@": path.resolve(__dirname, "./src"),\n    },\n  },\n';
+      // Find the last } that closes the config object
+      const lastBrace = vc.lastIndexOf('}');
+      if (lastBrace > -1) {
+        vc = vc.slice(0, lastBrace) + resolveBlock + vc.slice(lastBrace);
+      }
     }
     fs.writeFileSync(viteConfigPath, vc, 'utf-8');
     ok('Added @ path alias to vite config');
