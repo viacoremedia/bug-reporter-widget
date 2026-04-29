@@ -6,25 +6,21 @@ Reports are sent to the [Bug Reporter Server](https://github.com/viacoremedia/bu
 
 ## Installation
 
-This package is hosted on **GitHub Packages**, not the public npm registry.
+This package is hosted on **GitHub Packages**. One-time setup required per machine.
 
-### 1. Configure your project's `.npmrc`
+### First Time Setup (one-liner)
 
-Create or update `.npmrc` in your project root (next to `package.json`):
-
-```
-@viacoremedia:registry=https://npm.pkg.github.com
-```
-
-### 2. Authenticate (one-time)
-
-Generate a [GitHub PAT](https://github.com/settings/tokens) with `read:packages` scope, then:
+Run this once from any project directory. It adds ViacoreMedia's package registry to your **global** npm config so every project can install `@viacoremedia/*` packages automatically:
 
 ```bash
-npm login --scope=@viacoremedia --registry=https://npm.pkg.github.com
+echo "@viacoremedia:registry=https://npm.pkg.github.com" >> ~/.npmrc && echo "//npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN" >> ~/.npmrc
 ```
 
-### 3. Install
+> Replace `YOUR_GITHUB_TOKEN` with a [GitHub PAT](https://github.com/settings/tokens) that has `read:packages` scope. Ask Josh if you need a token.
+
+### Install
+
+Once setup is done, install like any other package:
 
 ```bash
 npm install @viacoremedia/bug-reporter html2canvas
