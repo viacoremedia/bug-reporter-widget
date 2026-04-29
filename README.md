@@ -20,15 +20,16 @@ echo "@viacoremedia:registry=https://npm.pkg.github.com" >> ~/.npmrc && echo "//
 
 ### Install
 
-Once setup is done, install like any other package:
+Once setup is done, install from your **`client/`** (frontend) directory:
 
 ```bash
+cd client
 npm install @viacoremedia/bug-reporter html2canvas
 ```
 
 ## Quick Start
 
-After installing, run the setup CLI — it auto-patches your app:
+From the same `client/` directory, run the setup CLI:
 
 ```bash
 npx bug-reporter-setup "Your System Name"
