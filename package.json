@@ -1,6 +1,6 @@
 {
   "name": "@viacoremedia/bug-reporter",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Drop-in bug reporter & feature request widget for ViacoreMedia projects",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
