@@ -1,11 +1,4 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, ImageIcon, AlertCircle, CheckCircle2, ChevronDown, ChevronUp, Camera, Loader2, RefreshCw, Pencil } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { cn } from '@/lib/utils';
 import { getBufferedLogs } from './RouteTracker';
 import { AnnotationEditor } from './AnnotationEditor';
 import html2canvas from 'html2canvas';
@@ -21,10 +14,136 @@ interface BugReportModalProps {
   user?: BugReporterUser | null;
 }
 
-const severityOptions: { value: Severity; label: string; description: string; color: string }[] = [
-  { value: 'Critical', label: '🔴 Critical', description: 'System is broken', color: 'border-red-500 bg-red-50' },
-  { value: 'Urgent', label: '🟠 Urgent', description: 'Major issue', color: 'border-orange-500 bg-orange-50' },
-  { value: 'Not Urgent', label: '🟢 Not Urgent', description: 'Minor issue', color: 'border-green-500 bg-green-50' },
+// ── Self-contained styles — works on ANY host app ──
+const S = {
+  backdrop: {
+    position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.5)',
+    zIndex: 9998, transition: 'opacity 200ms',
+  },
+  wrapper: {
+    position: 'fixed' as const, top: '50%', left: '50%',
+    transform: 'translate(-50%, -50%)', zIndex: 9999,
+    width: '100%', maxWidth: '440px', padding: '0 16px',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  },
+  card: {
+    background: '#ffffff', borderRadius: '12px',
+    boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)',
+    maxHeight: '90vh', overflowY: 'auto' as const,
+    border: '1px solid #e5e7eb',
+  },
+  header: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '16px 20px', borderBottom: '1px solid #e5e7eb',
+  },
+  headerTitle: {
+    fontSize: '16px', fontWeight: 600, color: '#111827', margin: 0,
+  },
+  closeBtn: {
+    background: 'none', border: 'none', cursor: 'pointer', padding: '4px',
+    color: '#9ca3af', fontSize: '20px', lineHeight: 1,
+  },
+  body: { padding: '20px', display: 'flex', flexDirection: 'column' as const, gap: '16px' },
+  label: {
+    fontSize: '13px', fontWeight: 600, color: '#374151', display: 'block', marginBottom: '6px',
+  },
+  required: { color: '#ef4444' },
+  input: {
+    width: '100%', padding: '10px 12px', borderRadius: '8px',
+    border: '1px solid #d1d5db', fontSize: '14px', color: '#111827',
+    background: '#ffffff', outline: 'none', boxSizing: 'border-box' as const,
+    transition: 'border-color 150ms',
+  },
+  textarea: {
+    width: '100%', padding: '10px 12px', borderRadius: '8px',
+    border: '1px solid #d1d5db', fontSize: '14px', color: '#111827',
+    background: '#ffffff', outline: 'none', resize: 'none' as const,
+    minHeight: '90px', boxSizing: 'border-box' as const,
+    fontFamily: 'inherit', transition: 'border-color 150ms',
+  },
+  toggleRow: { display: 'flex', gap: '8px' },
+  toggleBtn: (active: boolean, color: string) => ({
+    flex: 1, padding: '10px 12px', borderRadius: '8px',
+    border: `2px solid ${active ? color : '#e5e7eb'}`,
+    background: active ? `${color}10` : '#ffffff',
+    color: active ? color : '#6b7280',
+    fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+    transition: 'all 150ms',
+  }),
+  screenshotRow: { display: 'flex', gap: '8px' },
+  screenshotBtn: {
+    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+    padding: '8px 12px', borderRadius: '8px',
+    border: '1px solid #d1d5db', background: '#ffffff',
+    fontSize: '13px', fontWeight: 500, color: '#374151', cursor: 'pointer',
+    transition: 'background 150ms',
+  },
+  dropZone: {
+    border: '2px dashed #d1d5db', borderRadius: '8px', padding: '16px',
+    textAlign: 'center' as const, cursor: 'pointer', color: '#9ca3af',
+    fontSize: '13px', transition: 'border-color 150ms',
+  },
+  severityGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' },
+  severityCard: (active: boolean, borderColor: string) => ({
+    display: 'flex', flexDirection: 'column' as const, alignItems: 'center',
+    padding: '10px 8px', borderRadius: '8px', cursor: 'pointer',
+    border: `2px solid ${active ? borderColor : '#e5e7eb'}`,
+    background: active ? `${borderColor}10` : '#ffffff',
+    transition: 'all 150ms',
+  }),
+  severityLabel: { fontSize: '12px', fontWeight: 600, color: '#374151' },
+  severityDesc: { fontSize: '10px', color: '#9ca3af', marginTop: '2px' },
+  contextBar: {
+    borderRadius: '8px', border: '1px solid #e5e7eb', overflow: 'hidden',
+  },
+  contextToggle: {
+    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '8px 12px', background: '#f9fafb', border: 'none', cursor: 'pointer',
+    fontSize: '12px', fontWeight: 500, color: '#6b7280',
+  },
+  contextBody: {
+    padding: '8px 12px', fontSize: '11px', color: '#6b7280',
+    borderTop: '1px solid #e5e7eb', background: '#fafafa',
+  },
+  submitBtn: (color: string) => ({
+    width: '100%', padding: '12px', borderRadius: '8px',
+    border: 'none', background: color, color: '#ffffff',
+    fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+    transition: 'opacity 150ms',
+  }),
+  error: {
+    display: 'flex', alignItems: 'center', gap: '6px',
+    fontSize: '13px', color: '#ef4444',
+  },
+  successWrap: {
+    padding: '40px 20px', textAlign: 'center' as const,
+  },
+  successIcon: {
+    width: '56px', height: '56px', borderRadius: '50%', background: '#dcfce7',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    margin: '0 auto 16px', fontSize: '28px',
+  },
+  successTitle: { fontSize: '16px', fontWeight: 600, color: '#111827' },
+  successSub: { fontSize: '13px', color: '#6b7280', marginTop: '4px' },
+  imgPreview: {
+    position: 'relative' as const, borderRadius: '8px', overflow: 'hidden',
+    border: '1px solid #e5e7eb', marginTop: '6px',
+  },
+  imgOverlay: {
+    position: 'absolute' as const, top: '8px', right: '8px',
+    display: 'flex', gap: '4px',
+  },
+  imgBtn: (bg: string) => ({
+    padding: '4px 10px', borderRadius: '6px', border: 'none',
+    background: bg, color: '#fff', fontSize: '11px', fontWeight: 600,
+    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px',
+  }),
+};
+
+const severityOptions: { value: Severity; label: string; desc: string; dot: string; border: string }[] = [
+  { value: 'Critical', label: 'Critical', desc: 'System is broken', dot: '#ef4444', border: '#ef4444' },
+  { value: 'Urgent', label: 'Urgent', desc: 'Major issue', dot: '#f97316', border: '#f97316' },
+  { value: 'Not Urgent', label: 'Not Urgent', desc: 'Minor issue', dot: '#22c55e', border: '#22c55e' },
 ];
 
 export function BugReportModal({ isOpen, onClose, systemName, apiUrl, user }: BugReportModalProps) {
@@ -45,14 +164,8 @@ export function BugReportModal({ isOpen, onClose, systemName, apiUrl, user }: Bu
   const [isHiding, setIsHiding] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-captured context
-  const [capturedContext, setCapturedContext] = useState({
-    page: '',
-    userAgent: '',
-    viewport: '',
-  });
+  const [capturedContext, setCapturedContext] = useState({ page: '', userAgent: '', viewport: '' });
 
-  // Capture context when modal opens
   useEffect(() => {
     if (isOpen) {
       setCapturedContext({
@@ -63,230 +176,119 @@ export function BugReportModal({ isOpen, onClose, systemName, apiUrl, user }: Bu
     }
   }, [isOpen]);
 
-  // ── Screenshot Capture: Native (getDisplayMedia) ──
   const handleNativeCapture = async () => {
-    setCapturing(true);
-    setIsHiding(true);
-
+    setCapturing(true); setIsHiding(true);
     await new Promise(r => setTimeout(r, 300));
-
     try {
       const stream = await (navigator.mediaDevices as any).getDisplayMedia({
-        video: { displaySurface: 'browser' },
-        audio: false,
-        preferCurrentTab: true,
+        video: { displaySurface: 'browser' }, audio: false, preferCurrentTab: true,
       });
-
       const video = document.createElement('video');
       video.srcObject = stream;
-
       await new Promise<void>((resolve, reject) => {
-        video.onloadedmetadata = () => {
-          video.play().then(resolve).catch(reject);
-        };
+        video.onloadedmetadata = () => { video.play().then(resolve).catch(reject); };
         setTimeout(() => reject(new Error('Video timeout')), 5000);
       });
-
       await new Promise(r => setTimeout(r, 100));
-
       const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
       const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('Could not get canvas context');
+      if (!ctx) throw new Error('No canvas context');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      stream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
+      stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
       video.remove();
-
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
-      setScreenshot(dataUrl);
-      setImage(null);
-      setImagePreview(null);
+      setScreenshot(canvas.toDataURL('image/jpeg', 0.6));
+      setImage(null); setImagePreview(null);
     } catch (error: any) {
-      if (error.name === 'NotAllowedError') {
-        // User cancelled — do nothing
-      } else {
-        console.warn('Native capture failed, trying legacy fallback...');
-        await handleLegacyCapture();
-      }
-    } finally {
-      setIsHiding(false);
-      setCapturing(false);
-    }
+      if (error.name !== 'NotAllowedError') await handleLegacyCapture();
+    } finally { setIsHiding(false); setCapturing(false); }
   };
 
-  // ── Screenshot Capture: Legacy (html2canvas fallback) ──
   const handleLegacyCapture = async () => {
-    setCapturing(true);
-    setIsHiding(true);
+    setCapturing(true); setIsHiding(true);
     await new Promise(r => setTimeout(r, 300));
-
     try {
       await document.fonts.ready;
       const canvas = await html2canvas(document.body, {
-        logging: false,
-        useCORS: true,
-        allowTaint: true,
-        scale: 1,
-        backgroundColor: '#ffffff',
-        onclone: (clonedDoc: Document) => {
-          const overlays = clonedDoc.querySelectorAll('[class*="z-[999"]');
-          overlays.forEach(el => ((el as HTMLElement).style.display = 'none'));
+        logging: false, useCORS: true, allowTaint: true, scale: 1, backgroundColor: '#ffffff',
+        onclone: (doc: Document) => {
+          doc.querySelectorAll('[class*="z-[999"]').forEach(el => ((el as HTMLElement).style.display = 'none'));
         },
       });
-
       setScreenshot(canvas.toDataURL('image/jpeg', 0.6));
-      setImage(null);
-      setImagePreview(null);
-    } catch (error) {
-      console.error('Legacy capture failed:', error);
-      setErrorMessage('Screenshot capture failed. You can still upload manually.');
-    } finally {
-      setIsHiding(false);
-      setCapturing(false);
-    }
+      setImage(null); setImagePreview(null);
+    } catch { setErrorMessage('Screenshot capture failed. You can still upload manually.'); }
+    finally { setIsHiding(false); setCapturing(false); }
   };
 
   const handleImageSelect = (file: File) => {
-    if (file.size > 5 * 1024 * 1024) {
-      setErrorMessage('Image must be under 5MB');
-      return;
-    }
-    if (!file.type.startsWith('image/')) {
-      setErrorMessage('Only image files are allowed');
-      return;
-    }
-    setImage(file);
-    setImagePreview(URL.createObjectURL(file));
-    setScreenshot(null);
-    setErrorMessage('');
+    if (file.size > 5 * 1024 * 1024) { setErrorMessage('Image must be under 5MB'); return; }
+    if (!file.type.startsWith('image/')) { setErrorMessage('Only image files'); return; }
+    setImage(file); setImagePreview(URL.createObjectURL(file)); setScreenshot(null); setErrorMessage('');
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file) handleImageSelect(file);
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) handleImageSelect(file);
-  };
+  const handleDrop = (e: React.DragEvent) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleImageSelect(f); };
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) handleImageSelect(f); };
 
   const removeScreenshot = () => {
-    setScreenshot(null);
-    setImage(null);
+    setScreenshot(null); setImage(null);
     if (imagePreview) URL.revokeObjectURL(imagePreview);
     setImagePreview(null);
   };
 
   const resetForm = () => {
-    setTitle('');
-    setDescription('');
-    setSeverity('Not Urgent');
-    setReportType('bug');
-    removeScreenshot();
-    setSubmitStatus('idle');
-    setErrorMessage('');
-    setShowDetails(false);
-    setShowAnnotationEditor(false);
+    setTitle(''); setDescription(''); setSeverity('Not Urgent'); setReportType('bug');
+    removeScreenshot(); setSubmitStatus('idle'); setErrorMessage('');
+    setShowDetails(false); setShowAnnotationEditor(false);
   };
 
   const handleSubmit = async () => {
-    if (!title.trim()) {
-      setErrorMessage('Please provide a title');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setErrorMessage('');
-
+    if (!title.trim()) { setErrorMessage('Please provide a title'); return; }
+    setIsSubmitting(true); setErrorMessage('');
     try {
       const logs = getBufferedLogs();
-
-      const finalScreenshot = screenshot;
-
-      const reportPayload: Record<string, any> = {
-        message: description || title,
-        title,
-        description,
-        severity,
-        type: reportType,
-        page: capturedContext.page,
-        userAgent: capturedContext.userAgent,
-        viewport: capturedContext.viewport,
-        logs,
-        reportedBy: user ? {
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          userId: user.id,
-        } : undefined,
+      const payload: Record<string, any> = {
+        message: description || title, title, description, severity,
+        type: reportType, page: capturedContext.page,
+        userAgent: capturedContext.userAgent, viewport: capturedContext.viewport, logs,
+        reportedBy: user ? { name: user.name, email: user.email, role: user.role, userId: user.id } : undefined,
       };
+      if (screenshot) payload.screenshot = screenshot;
 
-      if (finalScreenshot) {
-        reportPayload.screenshot = finalScreenshot;
-      }
-
-      if (image && !finalScreenshot) {
-        const formData = new FormData();
-        formData.append('screenshot', image);
-        Object.entries(reportPayload).forEach(([key, value]) => {
-          if (value === undefined || value === null) return;
-          if (typeof value === 'object') {
-            formData.append(key, JSON.stringify(value));
-          } else {
-            formData.append(key, String(value));
-          }
+      if (image && !screenshot) {
+        const fd = new FormData();
+        fd.append('screenshot', image);
+        Object.entries(payload).forEach(([k, v]) => {
+          if (v == null) return;
+          fd.append(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
         });
-
-        const response = await fetch(`${baseUrl}/api/bugs/${systemName}/report`, {
-          method: 'POST',
-          body: formData,
-        });
-        if (!response.ok) throw new Error('Failed to submit bug report');
+        const r = await fetch(`${baseUrl}/api/bugs/${systemName}/report`, { method: 'POST', body: fd });
+        if (!r.ok) throw new Error();
       } else {
-        const response = await fetch(`${baseUrl}/api/bugs/${systemName}/report`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(reportPayload),
+        const r = await fetch(`${baseUrl}/api/bugs/${systemName}/report`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
         });
-        if (!response.ok) throw new Error('Failed to submit bug report');
+        if (!r.ok) throw new Error();
       }
-
       setSubmitStatus('success');
-      setTimeout(() => {
-        resetForm();
-        onClose();
-      }, 1500);
-    } catch (err) {
-      setSubmitStatus('error');
-      setErrorMessage('Failed to submit. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
+      setTimeout(() => { resetForm(); onClose(); }, 1500);
+    } catch { setSubmitStatus('error'); setErrorMessage('Failed to submit. Please try again.'); }
+    finally { setIsSubmitting(false); }
   };
 
-  const handleClose = () => {
-    resetForm();
-    onClose();
-  };
+  const handleClose = () => { resetForm(); onClose(); };
 
   if (!isOpen) return null;
 
-  // ── Full-screen Annotation Editor ──
+  // ── Annotation Editor ──
   if (showAnnotationEditor && screenshot) {
     return (
       <>
-        <div className="fixed inset-0 bg-black/50 z-[9998]" />
-        <div className="fixed inset-4 z-[9999] bg-background rounded-xl overflow-hidden shadow-2xl border border-border">
+        <div style={S.backdrop} />
+        <div style={{ position: 'fixed', inset: '16px', zIndex: 9999, background: '#fff', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 25px 50px rgba(0,0,0,0.3)' }}>
           <AnnotationEditor
             imageSrc={screenshot}
-            onSave={(annotatedImage) => {
-              setScreenshot(annotatedImage);
-              setShowAnnotationEditor(false);
-            }}
+            onSave={(img) => { setScreenshot(img); setShowAnnotationEditor(false); }}
             onCancel={() => setShowAnnotationEditor(false)}
           />
         </div>
@@ -299,288 +301,150 @@ export function BugReportModal({ isOpen, onClose, systemName, apiUrl, user }: Bu
   return (
     <>
       {/* Backdrop */}
-      <div
-        className={cn(
-          "fixed inset-0 bg-black/50 z-[9998] transition-opacity duration-200",
-          isHiding && "opacity-0 pointer-events-none"
-        )}
-        onClick={handleClose}
-      />
+      <div style={{ ...S.backdrop, opacity: isHiding ? 0 : 1, pointerEvents: isHiding ? 'none' : 'auto' }} onClick={handleClose} />
 
       {/* Modal */}
-      <div className={cn(
-        "fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[9999] w-full max-w-md transition-opacity duration-200",
-        isHiding && "opacity-0 pointer-events-none"
-      )}>
-        <div className="bg-background border border-border rounded-lg shadow-xl mx-4 max-h-[90vh] overflow-y-auto">
+      <div style={{ ...S.wrapper, opacity: isHiding ? 0 : 1, pointerEvents: isHiding ? 'none' : 'auto' }}>
+        <div style={S.card}>
+
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-background z-10">
-            <h2 className="text-lg font-semibold text-foreground">
+          <div style={S.header}>
+            <h2 style={S.headerTitle}>
               {reportType === 'bug' ? '🐛 Report a Bug' : '💡 Feature Request'}
             </h2>
-            <button
-              onClick={handleClose}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <button style={S.closeBtn} onClick={handleClose}>✕</button>
           </div>
 
-          {/* Success State */}
+          {/* Success */}
           {submitStatus === 'success' ? (
-            <div className="p-8 text-center">
-              <div className="w-16 h-16 rounded-full bg-green-100 mx-auto mb-4 flex items-center justify-center">
-                <CheckCircle2 className="h-8 w-8 text-green-600" />
-              </div>
-              <h3 className="text-lg font-medium text-foreground">
-                {reportType === 'bug' ? 'Bug reported!' : 'Feature requested!'}
-              </h3>
-              <p className="text-sm text-muted-foreground mt-1">Thank you for your feedback</p>
+            <div style={S.successWrap}>
+              <div style={S.successIcon}>✓</div>
+              <h3 style={S.successTitle}>{reportType === 'bug' ? 'Bug reported!' : 'Feature requested!'}</h3>
+              <p style={S.successSub}>Thank you for your feedback</p>
             </div>
           ) : (
-            <div className="p-4 space-y-4">
+            <div style={S.body}>
+
               {/* Type Toggle */}
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setReportType('bug')}
-                  className={cn(
-                    "flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors border",
-                    reportType === 'bug'
-                      ? "bg-red-50 border-red-300 text-red-700"
-                      : "bg-background border-border text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  🐛 Bug
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setReportType('feature')}
-                  className={cn(
-                    "flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors border",
-                    reportType === 'feature'
-                      ? "bg-blue-50 border-blue-300 text-blue-700"
-                      : "bg-background border-border text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  💡 Feature
-                </button>
+              <div style={S.toggleRow}>
+                <button style={S.toggleBtn(reportType === 'bug', '#dc2626')} onClick={() => setReportType('bug')}>🐛 Bug</button>
+                <button style={S.toggleBtn(reportType === 'feature', '#2563eb')} onClick={() => setReportType('feature')}>💡 Feature</button>
               </div>
 
               {/* Title */}
-              <div className="space-y-2">
-                <Label htmlFor="bug-title" className="text-sm font-medium">
-                  Title <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="bug-title"
+              <div>
+                <label style={S.label}>Title <span style={S.required}>*</span></label>
+                <input
+                  style={S.input}
                   placeholder={reportType === 'bug' ? "What's broken?" : "What would you like?"}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="text-sm"
+                  onFocus={(e) => (e.target.style.borderColor = '#3b82f6')}
+                  onBlur={(e) => (e.target.style.borderColor = '#d1d5db')}
                 />
               </div>
 
               {/* Description */}
-              <div className="space-y-2">
-                <Label htmlFor="bug-description" className="text-sm font-medium">
-                  Description
-                </Label>
-                <Textarea
-                  id="bug-description"
+              <div>
+                <label style={S.label}>Description</label>
+                <textarea
+                  style={S.textarea}
                   placeholder={reportType === 'bug' ? "Describe what went wrong..." : "Describe the feature in detail..."}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="min-h-[80px] text-sm resize-none"
+                  onFocus={(e) => (e.target.style.borderColor = '#3b82f6')}
+                  onBlur={(e) => (e.target.style.borderColor = '#d1d5db')}
                 />
               </div>
 
-              {/* Screenshot Capture + Upload */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Screenshot</Label>
-
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 gap-2"
-                    onClick={handleNativeCapture}
-                    disabled={capturing}
-                  >
-                    {capturing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-                    <span className="truncate">{hasScreenshot ? 'Retake' : 'Capture Tab'}</span>
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    title="Legacy capture (if tab capture fails)"
-                    className="px-2 text-muted-foreground hover:text-foreground"
-                    onClick={handleLegacyCapture}
-                    disabled={capturing}
-                  >
-                    <RefreshCw className={cn("w-4 h-4", capturing && "animate-spin")} />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={capturing}
-                  >
-                    <ImageIcon className="w-4 h-4" />
-                    Upload
-                  </Button>
+              {/* Screenshot */}
+              <div>
+                <label style={S.label}>Screenshot</label>
+                <div style={S.screenshotRow}>
+                  <button style={S.screenshotBtn} onClick={handleNativeCapture} disabled={capturing}>
+                    📷 {hasScreenshot ? 'Retake' : 'Capture Tab'}
+                  </button>
+                  <button style={{ ...S.screenshotBtn, flex: 'none', padding: '8px 10px' }} onClick={handleLegacyCapture} disabled={capturing} title="Legacy capture">
+                    🔄
+                  </button>
+                  <button style={S.screenshotBtn} onClick={() => fileInputRef.current?.click()} disabled={capturing}>
+                    🖼️ Upload
+                  </button>
                 </div>
 
-                {/* Screenshot Preview */}
+                {/* Preview */}
                 {(screenshot || imagePreview) && (
-                  <div className="space-y-1.5">
-                    <div className="relative mt-1 rounded-lg border overflow-hidden bg-muted">
-                      <img
-                        src={screenshot || imagePreview || ''}
-                        alt="Captured"
-                        className="w-full"
-                      />
-                      <div className="absolute top-2 right-2 flex gap-1">
-                        {screenshot && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="secondary"
-                            className="h-7 text-xs gap-1.5 shadow-sm"
-                            onClick={() => setShowAnnotationEditor(true)}
-                          >
-                            <Pencil className="h-3 w-3" />
-                            Annotate
-                          </Button>
-                        )}
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="destructive"
-                          className="h-7 w-7 shadow-sm"
-                          onClick={removeScreenshot}
-                          title="Remove screenshot"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
+                  <div style={S.imgPreview}>
+                    <img src={screenshot || imagePreview || ''} alt="Captured" style={{ width: '100%', display: 'block' }} />
+                    <div style={S.imgOverlay}>
+                      {screenshot && (
+                        <button style={S.imgBtn('#374151')} onClick={() => setShowAnnotationEditor(true)}>✏️ Annotate</button>
+                      )}
+                      <button style={S.imgBtn('#ef4444')} onClick={removeScreenshot}>✕</button>
                     </div>
-                    {screenshot && (
-                      <p className="text-[10px] text-muted-foreground text-center">
-                        Click 'Annotate' to highlight issues on the screenshot
-                      </p>
-                    )}
                   </div>
                 )}
 
-                {/* Drag & drop fallback */}
+                {/* Drop zone */}
                 {!screenshot && !imagePreview && (
                   <div
+                    style={S.dropZone}
                     onClick={() => fileInputRef.current?.click()}
                     onDrop={handleDrop}
                     onDragOver={(e) => e.preventDefault()}
-                    className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-3 text-center cursor-pointer hover:border-muted-foreground/50 transition-colors"
                   >
-                    <div className="flex flex-col items-center gap-1 text-muted-foreground">
-                      <ImageIcon className="h-5 w-5" />
-                      <span className="text-xs">Or drag & drop an image</span>
-                    </div>
+                    🖼️ Or drag & drop an image
                   </div>
                 )}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
               </div>
 
               {/* Severity */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Severity</Label>
-                <RadioGroup value={severity} onValueChange={(v) => setSeverity(v as Severity)}>
-                  <div className="grid grid-cols-3 gap-2">
-                    {severityOptions.map((option) => (
-                      <label
-                        key={option.value}
-                        className={cn(
-                          "flex flex-col items-center p-2 rounded-lg border cursor-pointer transition-colors",
-                          severity === option.value
-                            ? option.color
-                            : "border-border hover:border-muted-foreground/50"
-                        )}
-                      >
-                        <RadioGroupItem value={option.value} className="sr-only" />
-                        <span className="text-xs font-medium">{option.label}</span>
-                        <span className="text-[10px] text-muted-foreground">{option.description}</span>
-                      </label>
-                    ))}
-                  </div>
-                </RadioGroup>
+              <div>
+                <label style={S.label}>Severity</label>
+                <div style={S.severityGrid}>
+                  {severityOptions.map((opt) => (
+                    <div key={opt.value} style={S.severityCard(severity === opt.value, opt.border)} onClick={() => setSeverity(opt.value)}>
+                      <span style={S.severityLabel}>
+                        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: opt.dot, marginRight: 5, verticalAlign: 'middle' }} />
+                        {opt.label}
+                      </span>
+                      <span style={S.severityDesc}>{opt.desc}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* Auto-Captured Context (collapsible) */}
-              <div className="border border-border rounded-lg overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setShowDetails(!showDetails)}
-                  className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors bg-muted/30"
-                >
+              {/* Context */}
+              <div style={S.contextBar}>
+                <button style={S.contextToggle} onClick={() => setShowDetails(!showDetails)}>
                   <span>📎 Auto-captured context</span>
-                  {showDetails ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  <span>{showDetails ? '▲' : '▼'}</span>
                 </button>
                 {showDetails && (
-                  <div className="px-3 py-2 space-y-1.5 text-xs text-muted-foreground border-t border-border bg-muted/10">
-                    {user && (
-                      <div className="flex gap-2">
-                        <span className="text-muted-foreground/70 shrink-0">User:</span>
-                        <span className="truncate">{user.name} ({user.email}){user.role ? ` · ${user.role}` : ''}</span>
-                      </div>
-                    )}
-                    <div className="flex gap-2">
-                      <span className="text-muted-foreground/70 shrink-0">Page:</span>
-                      <span className="truncate">{capturedContext.page}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className="text-muted-foreground/70 shrink-0">Browser:</span>
-                      <span className="truncate">{capturedContext.userAgent}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className="text-muted-foreground/70 shrink-0">Viewport:</span>
-                      <span>{capturedContext.viewport}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className="text-muted-foreground/70 shrink-0">Console:</span>
-                      <span>{getBufferedLogs().length} log entries captured</span>
-                    </div>
+                  <div style={S.contextBody}>
+                    {user && <div>User: {user.name} ({user.email}){user.role ? ` · ${user.role}` : ''}</div>}
+                    <div>Page: {capturedContext.page}</div>
+                    <div>Viewport: {capturedContext.viewport}</div>
+                    <div>Console: {getBufferedLogs().length} log entries</div>
                   </div>
                 )}
               </div>
 
               {/* Error */}
-              {errorMessage && (
-                <div className="flex items-center gap-2 text-sm text-destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  {errorMessage}
-                </div>
-              )}
+              {errorMessage && <div style={S.error}>⚠️ {errorMessage}</div>}
 
               {/* Submit */}
-              <Button
+              <button
+                style={{
+                  ...S.submitBtn(reportType === 'feature' ? '#2563eb' : '#16a34a'),
+                  opacity: isSubmitting ? 0.6 : 1,
+                }}
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className={cn(
-                  "w-full",
-                  reportType === 'feature' && "bg-blue-600 hover:bg-blue-700"
-                )}
               >
                 {isSubmitting ? 'Submitting...' : reportType === 'bug' ? 'Submit Bug Report' : 'Submit Feature Request'}
-              </Button>
+              </button>
             </div>
           )}
         </div>

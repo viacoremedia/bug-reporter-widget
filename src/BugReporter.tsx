@@ -48,20 +48,26 @@ export function BugReporter({ systemName, apiUrl, user, contact }: Partial<BugRe
       {/* Floating Button */}
       <button
         onClick={() => setIsOpen(true)}
-        className={cn(
-          "fixed bottom-6 right-6 z-[9997]",
-          "w-10 h-10 rounded-full",
-          "bg-muted/80 hover:bg-muted",
-          "border border-border shadow-lg",
-          "flex items-center justify-center",
-          "transition-all duration-200",
-          "hover:scale-110 hover:shadow-xl",
-          "group"
-        )}
+        style={{
+          position: 'fixed', bottom: '24px', right: '24px', zIndex: 9997,
+          width: '40px', height: '40px', borderRadius: '50%',
+          background: 'rgba(255,255,255,0.45)', border: '1px solid rgba(200,200,200,0.4)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', transition: 'transform 200ms, box-shadow 200ms, background 200ms',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.25)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'; }}
         title="Report a Bug"
         aria-label="Report a Bug"
       >
-        <Bug className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m8 2 1.88 1.88"/><path d="M14.12 3.88 16 2"/><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/>
+          <path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/>
+          <path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/><path d="M6 13H2"/>
+          <path d="M3 21c0-2.1 1.7-3.9 3.8-4"/><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/>
+          <path d="M22 13h-4"/><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/>
+        </svg>
       </button>
 
       {/* Modal */}
